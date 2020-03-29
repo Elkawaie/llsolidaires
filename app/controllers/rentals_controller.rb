@@ -62,34 +62,43 @@ class RentalsController < ApplicationController
 
   def owner_validated
     # Les rentals du current owner, validated==true, a trier par "en cours" et "a venir" (du plus récent au plus vieux), (contendra partial show)
-    # =================================== Degueulasse à refaire ===================================
+    # =================================== Degueulasse à refaire??? ===================================
     if current_user.role == "owner"
-      @rentals = []
+      @current_rentals = []
+      @future_rentals = []
       current_user.flats.each do |flat|
         flat.rentals.each do |rental|
           if rental.validated
-            @rentals << rental
+            if rental.start_date > Date.today
+              @future_rentals << rental
+            elsif rental.start_date <= Date.today && rental.end_date >= Date.today
+              @current_rentals << rental
+            end
           end
         end
       end
+      @current_rentals.order_by(end_date)
+      @future_rentals.order_by(start_date)
     end
-    # =================================== Degueulasse à refaire ===================================
+    # =================================== Degueulasse à refaire??? ===================================
   end
 
   def owner_pending
     # Les rentals du current_owner, validated==false, a trier par date de début, (contiendra boutons valider et refuse + partial rental show)
-    # =================================== Degueulasse à refaire ===================================
+    # =================================== Degueulasse à refaire??? ===================================
     if current_user.role == "owner"
       @rentals = []
+      @rentals
       current_user.flats.each do |flat|
         flat.rentals.each do |rental|
-          if !rental.validated
+          if !rental.validated && rental.end_date >= Date.tomorrow
             @rentals << rental
           end
         end
       end
+      @rentals.order_by(start_date)
     end
-    # =================================== Degueulasse à refaire ===================================
+    # =================================== Degueulasse à refaire??? ===================================
   end
 
   def medical_validated
