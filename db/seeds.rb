@@ -92,7 +92,8 @@ Rental.create!({
   user_id: medic.id,
   flat_id: appart3.id,
   start_date: Date.new(2020,03,25),
-  end_date: Date.new(2020,05,29)
+  end_date: Date.new(2020,05,29),
+  validated: false
 })
 
 # puts "Création d'un hopital"

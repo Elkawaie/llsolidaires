@@ -1,34 +1,14 @@
 class RentalsController < ApplicationController
   before_action :set_rental, only: [:download_proof, :show, :edit, :update, :destroy, :validate_rental, :refuse_rental]
 
-  def download_proof
-    data = open(@rental.user.proof.url)
-    extension_rgx = /[0-9a-z]+$/
-    send_data data.read, type: data.content_type, x_sendflile: true, filename: "justificatif_#{@rental.user.last_name}_#{@rental.user.first_name}.#{(@rental.user.proof.path).match(extension_rgx).to_s}"
-  end
-
   def show
 
   end
 
-  def index
-   if current_user.role == 'owner'
-      # Find the current user flats
-      @flats = Flat.where(user: current_user)
-      # Instanciate an empty array of rentals record
-      @rentals = []
-      # Iterate over current user 's flats to find the corresponding rentals
-      @flats.each do |flat|
-        # Store each flat's rentals
-        flat_rentals = Rental.where(flat: flat)
-        # Iterate over these to store it in the @rentals variable
-        flat_rentals.each do |rental|
-          @rentals << rental
-        end
-      end
-    else # elsif current_user.role == 'owner'
-      @rentals = Rental.where(user: current_user)
-    end
+  def download_proof
+    data = open(@rental.user.proof.url)
+    extension_rgx = /[0-9a-z]+$/
+    send_data data.read, type: data.content_type, x_sendflile: true, filename: "justificatif_#{@rental.user.last_name}_#{@rental.user.first_name}.#{(@rental.user.proof.path).match(extension_rgx).to_s}"
   end
 
   def new
@@ -36,11 +16,10 @@ class RentalsController < ApplicationController
   end
 
   def create
-    if current_user == 'medical'
+    if current_user.role == 'medical'
       @rental = Rental.new(rental_params)
       if @rental.save
         UserMailer.send_rental_demand_to_owner(@rental).deliver
-        # On a une view rental? ou bien rediriger vers l'index de rentals du current medical
         redirect_to root_path
       else
         render :new
@@ -51,39 +30,82 @@ class RentalsController < ApplicationController
     end
   end
 
-  def edit
-    # a implementer si besoin?
-  end
-
-  def update
-    if @rental.update(rental_params)
-      # On a une view rental? ou bien rediriger vers l'index de rentals du current medical
-      redirect_to rental_path(@rental)
-    else
-      render :edit
-    end
-    redirect_to root_path
-  end
-
   def destroy
-    flash[:error] = "Vous avez supprimé la réservation de l'appartement situé #{@rental.flat.address}"
-    @rental.destoy
-    redirect_to root_path
+    if current_user == @rental.user && @rental.validated == false
+      flash[:error] = "Vous avez supprimé la réservation de l'appartement situé #{@rental.flat.address}"
+      @rental.destoy
+      redirect_to root_path
+    else
+      flash[:error] = "Vous ne pouvez pas supprimer cette réservation"
+      redirect_to root_path
+    end
   end
 
   def validate_rental
-    @rental.validated = true
+    @rental.update(validated: true)
+    # Supprimer toutes les autres rentals.validated == false pour le @rental.user, seuleùent celles qui ont une date en commun avec @rental
     UserMailer.send_acceptation_to_medical(@rental).deliver
-    # On a une view rental? ou bien rediriger vers l'index de rentals du current medical
-    redirect_to rental_path(@rental)
+    render :owner_validated
   end
 
   def refuse_rental
-    # Display un alerte avant validation
-    flash[:error] = "Vous avez refusé la réservation de l'appartement situé #{@rental.flat.address} par #{@rental.user.first_name} #{@rental.user.last_name}"
-    @rental.destroy
-    UserMailer.send_refusal_to_medical(@rental).deliver
-    redirect_to root_path
+    # Display une pop up demandant validation de la part de l'utilisateur
+    if @rental.flat.user == current_user && @rental.validated == false
+      flash[:error] = "Vous avez refusé la réservation de l'appartement situé #{@rental.flat.address} par #{@rental.user.first_name} #{@rental.user.last_name}"
+      @rental.destroy
+      UserMailer.send_refusal_to_medical(@rental).deliver
+      redirect_to root_path
+    else
+      flash[:error] = "Vous ne pouvez pas refuser cette réservation"
+    end
+  end
+
+  def owner_validated
+    # Les rentals du current owner, validated==true, a trier par "en cours" et "a venir" (du plus récent au plus vieux), (contendra partial show)
+    # =================================== Degueulasse à refaire ===================================
+    if current_user.role == "owner"
+      @rentals = []
+      current_user.flats.each do |flat|
+        flat.rentals.each do |rental|
+          if rental.validated
+            @rentals << rental
+          end
+        end
+      end
+    end
+    # =================================== Degueulasse à refaire ===================================
+  end
+
+  def owner_pending
+    # Les rentals du current_owner, validated==false, a trier par date de début, (contiendra boutons valider et refuse + partial rental show)
+    # =================================== Degueulasse à refaire ===================================
+    if current_user.role == "owner"
+      @rentals = []
+      current_user.flats.each do |flat|
+        flat.rentals.each do |rental|
+          if !rental.validated
+            @rentals << rental
+          end
+        end
+      end
+    end
+    # =================================== Degueulasse à refaire ===================================
+  end
+
+  def medical_validated
+    # Les rentals du current medical, validated==true, celles en cours et dans le futur
+    if current_user.role == 'medical'
+       # all_rentals_from_medic = Rental.joins(:flat).where(user: current_user)
+       @rentals = current_user.rentals.where(validated: true)
+    end
+  end
+
+  def medical_pending
+    # Les rentals du creent medical, validated==false, celles à venir seulement
+    if current_user.role == 'medical'
+       # all_rentals_from_medic = Rental.joins(:flat).where(user: current_user)
+       @rentals = current_user.rentals.where(validated: false)
+    end
   end
 
   private
