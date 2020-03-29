@@ -10,7 +10,7 @@
 + Hugo (back + front)
 + Julien (front)
 + Pavel (front)
-+ Maximilien (front)
++ Maximilien Delangle git ID Elkawaie (front)
 + Youenn (back)
 + Slim (recrutement)
 + Julie (code review et testing)
